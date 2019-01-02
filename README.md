@@ -20,7 +20,7 @@ The approach taken is as follows:
 - A template class multithread\_tape\_manager is provided to manage a pre-determined number of copies of a CppAD tape.
 - A  multithread\_tape\_manager object makes copies of the CppAD tape copies during serial execution.
 - In functors for TBB multi-thread tasks, code must request and then release a tape from the multithread\_tape\_manager.
-- A CppAD\_scoped\_lock class is provided to make acquiring and releasing a tape simpler and safer: simpler because the acquisition can be made by object instantiation and safer because release can be done by object destruction, namely when it goes out of scope.  This is all similar to scoped\_lock objects in TBBAD.
+- A tape\_scoped\_lock class is provided to make acquiring and releasing a tape simpler and safer: simpler because the acquisition can be made by object instantiation and safer because release can be done by object destruction, namely when it goes out of scope.  This is all similar to scoped\_lock objects in TBB.
 - Internally, the multithread\_tape\_manager uses a TBB concurrent\_bounded\_queue to loan and collect tapes.  This TBB container features a pop operation that will wait for a resource.  If all tapes are in use, it will wait for one to be returned and pushed back into the queue.
 
 ## Efficiency caution
