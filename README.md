@@ -30,20 +30,19 @@ Say one has a `CppAD::ADFun<double>` object, i.e. a tape.
 
 ```{C++}
 /* f is the CppAD::ADFun<double> object.  We indicate 4 copies should be made and managed.*/
-
 TBB4CppAD::multithread_tape_manager<double> MTM(&f, 4);
 ```
 
 2. In the class to be used by `parallel_for` (or related function):
 
-a. Make a member variable of type `TBB4CppAD::multithread\_tape\_manager<double>*`.  Include a constructor argument to initialize this (from `&MTM`).
+    a. Make a member variable of type `TBB4CppAD::multithread_tape_manager<double>*`.  Include a constructor argument to initialize this (e.g. by passing `&MTM`).
 
-b. Use a tape in `operator()` as follows (taken from test.cpp):
+    b. Use a tape in `operator()` as follows (taken from test.cpp):
 
 ```{C++}
 {            /*lock will be released at the closing } of this local scope.*/
-    TBB4CppAD::multithread_tape_manager<double>::tape_scoped_lock tape(MTMp);// Acquire tape in closest proximity to its use.
-	grad = tape->Jacobian(x);       // Use tape like ADFun<double>
+  TBB4CppAD::multithread_tape_manager<double>::tape_scoped_lock tape(MTMp);// Acquire tape in closest proximity to its use.
+  grad = tape->Jacobian(x);       // Use tape like ADFun<double>
 }
 ```
 
