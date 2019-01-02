@@ -1,0 +1,72 @@
+<h1>TBB4CppAD</h1>
+
+<p>Simplify use of CppAD objects with TBB multi-threaded programming</p>
+
+<h2>Background</h2>
+
+<p>CppAD <img src="https://github.com/coin-or/CppAD" alt="https://github.com/coin-or/CppAD" title="" /> is a library for automatic differentiation.  It works by using overloaded data types for which mathematical operations are recorded in a "tape" that can then be re-used to compute function values or derivatives.</p>
+
+<p>Threading Building Blocks (TBB) <img src="https://www.threadingbuildingblocks.org/" alt="https://www.threadingbuildingblocks.org/" title="" /> is a widely used multi-threading library from Intel.</p>
+
+<p>CppAD and TBB do not naturally play well together.</p>
+
+<p>CppAD provides an interface for multi-threaded execution that  assumes the programmer will be explicitly managing threads.  TBB, on the other hand, abstracts away thread management.   It relies on functors for parallelized tasks.  Its task manager creates and destroys functor instances as needed.</p>
+
+<p>Attempting to use CppAD tapes naively in TBB functors leads to CppAD errors relating to memory management.  While it may or may not be possible to track down and resolve these errors, it should also be noted that CppAD tapes can be large, so extensive copying and deleting could be costly.</p>
+
+<h2>Approach</h2>
+
+<p>TBB4CppAD is very small library that supports use of CppAD tapes with TBB.</p>
+
+<p>The approach taken is as follows:</p>
+
+<ul>
+<li>A template class multithread_tape_manager is provided to manage a pre-determined number of copies of a CppAD tape.</li>
+<li>A  multithread_tape_manager object makes copies of the CppAD tape copies during serial execution.</li>
+<li>In functors for TBB multi-thread tasks, code must request and then release a tape from the multithread_tape_manager.</li>
+<li>A tape_scoped_lock class is provided to make acquiring and releasing a tape simpler and safer: simpler because the acquisition can be made by object instantiation and safer because release can be done by object destruction, namely when it goes out of scope.  This is all similar to scoped_lock objects in TBB.</li>
+<li>Internally, the multithread_tape_manager uses a TBB concurrent_bounded_queue to loan and collect tapes.  This TBB container features a pop operation that will wait for a resource.  If all tapes are in use, it will wait for one to be returned and pushed back into the queue.</li>
+</ul>
+
+<h2>Usage</h2>
+
+<p>Say one has a <code>CppAD::ADFun&lt;double&gt;</code> object, i.e. a tape.</p>
+
+<ol>
+<li>Prior to calling a TBB multi-thread function such as <code>parallel_for</code>, make a <code>multithread_tape_manager&lt;double&gt;</code>, such as:</li>
+</ol>
+
+<p>```C++
+/* f is the CppAD::ADFun<double> object.  We indicate 4 copies should be made and managed.*/</p>
+
+<p>TBB4CppAD::multithread<em>tape</em>manager<double> MTM(&amp;f, 4);
+``</p>
+
+<ol>
+<li><p>In the class to be used by <code>parallel_for</code> (or related function):</p>
+
+<p>a. Make a member variable of type <code>TBB4CppAD::multithread_tape_manager&lt;double&gt;*</code>.  Include a constructor argument to initialize this (from <code>&amp;MTM</code>).</p></li>
+</ol>
+
+<p>b. Use a tape as follows (taken from test.cpp):</p>
+
+<p><code>{C++}
+typedef TBB4CppAD::multithread_tape_manager&lt;double&gt;::tape_scoped_lock tape_scoped_lock;
+//...
+{            //lock will be released at the closing } of this local scope.
+    tape_scoped_lock tape(MTMp);// Acquire tape in closest proximity to its use.
+    grad = tape-&gt;Jacobian(x);       // Use tape like ADFun&lt;double&gt;
+}
+</code></p>
+
+<p>See test.cpp for further details.</p>
+
+<h2>Efficiency caution</h2>
+
+<p>The approach taken in TBB4CppAD does not necessarily optimize performance.  In fact, use of CppAD tapes could become a bottleneck to TBB's performance because threads will have to wait for access to a limited number of tapes.  On the other hand, if the number of tapes matches the number of processor cores available, then it may not be much of a bottleneck.  If multiple large CppAD tapes are involved, and a multithread_tape_manager is used for each one, each with many copies, there could be non-trivial memory use.</p>
+
+<h2>Limitations and questions</h2>
+
+<p>It does not appear that CppAD's multi-thread management system is necessary for the use cases presented by TBB4CppAD.   This is to be confirmed.</p>
+
+<p>Use of multiple multithread_tape_manager objects has not been tested.  How it should work depends on the answer to the above issue.</p>

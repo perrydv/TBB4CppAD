@@ -23,6 +23,33 @@ The approach taken is as follows:
 - A tape\_scoped\_lock class is provided to make acquiring and releasing a tape simpler and safer: simpler because the acquisition can be made by object instantiation and safer because release can be done by object destruction, namely when it goes out of scope.  This is all similar to scoped\_lock objects in TBB.
 - Internally, the multithread\_tape\_manager uses a TBB concurrent\_bounded\_queue to loan and collect tapes.  This TBB container features a pop operation that will wait for a resource.  If all tapes are in use, it will wait for one to be returned and pushed back into the queue.
 
+## Usage
+Say one has a `CppAD::ADFun<double>` object, i.e. a tape.
+
+1. Prior to calling a TBB multi-thread function such as `parallel_for`, make a `multithread_tape_manager<double>`, such as:
+
+```{C++}
+/* f is the CppAD::ADFun<double> object.  We indicate 4 copies should be made and managed.*/
+
+TBB4CppAD::multithread_tape_manager<double> MTM(&f, 4);
+```
+
+2. In the class to be used by `parallel_for` (or related function):
+
+a. Make a member variable of type `TBB4CppAD::multithread\_tape\_manager<double>*`.  Include a constructor argument to initialize this (from `&MTM`).
+
+b. Use a tape in `operator()` as follows (taken from test.cpp):
+
+```{C++}
+{            /*lock will be released at the closing } of this local scope.*/
+    TBB4CppAD::multithread_tape_manager<double>::tape_scoped_lock tape(MTMp);// Acquire tape in closest proximity to its use.
+	grad = tape->Jacobian(x);       // Use tape like ADFun<double>
+}
+```
+
+
+See test.cpp for further details.
+
 ## Efficiency caution
 The approach taken in TBB4CppAD does not necessarily optimize performance.  In fact, use of CppAD tapes could become a bottleneck to TBB's performance because threads will have to wait for access to a limited number of tapes.  On the other hand, if the number of tapes matches the number of processor cores available, then it may not be much of a bottleneck.  If multiple large CppAD tapes are involved, and a multithread\_tape\_manager is used for each one, each with many copies, there could be non-trivial memory use.
 
